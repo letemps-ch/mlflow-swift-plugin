@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mlflow_swift_plugin", "mlflow_swift_plugin.*"]
+
+[project]
+name = "mlflow-swift-plugin"
+version = "0.1.0"
+description = "MLflow plugin for OpenStack Swift artifact storage"
+authors = [{name = "Semion Sidorenko", email = "semion.sidorenko@gmail.com"}]
+dependencies = ['mlflow >= 3.0', 'python-swiftclient >= 4.0', 'python-keystoneclient >= 5.0']
+
+
+[project.entry-points."mlflow.artifact_repository"]
+swift = "mlflow_swift_plugin.swift_artifact_repo:SwiftArtifactRepository"
