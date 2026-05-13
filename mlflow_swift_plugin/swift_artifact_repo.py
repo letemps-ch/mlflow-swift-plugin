@@ -23,6 +23,8 @@ def _get_swift_connection(
     project_domain_name=None,
     user_domain_name=None,
     region_name=None,
+    http_timeout=None,
+    swift_retries=None,
 ):
     """
     Create and return an OpenStack Swift connection.
@@ -35,6 +37,13 @@ def _get_swift_connection(
         OS_PROJECT_DOMAIN_NAME: OpenStack project domain name
         OS_USER_DOMAIN_NAME: OpenStack user domain name
         OS_REGION_NAME: OpenStack region name
+        OS_HTTP_TIMEOUT: per-request HTTP timeout in seconds for keystoneauth +
+            swiftclient (default: 60). Applies to both connect and read; a single
+            wedged TCP read will surface as an exception after this many seconds
+            rather than hanging until the caller's wall-clock deadline.
+        OS_SWIFT_RETRIES: number of retries swiftclient performs on connection
+            errors (default: 1; swiftclient's own default is 5 with exponential
+            backoff, which compounds hangs).
     """
     import swiftclient
     from keystoneauth1 import session
@@ -49,6 +58,10 @@ def _get_swift_connection(
     )
     user_domain_name = user_domain_name or os.environ.get("OS_USER_DOMAIN_NAME", "Default")
     region_name = region_name or os.environ.get("OS_REGION_NAME")
+    if http_timeout is None:
+        http_timeout = float(os.environ.get("OS_HTTP_TIMEOUT", "60"))
+    if swift_retries is None:
+        swift_retries = int(os.environ.get("OS_SWIFT_RETRIES", "1"))
 
     if not all([auth_url, username, password, project_name]):
         raise MlflowException(
@@ -67,11 +80,13 @@ def _get_swift_connection(
         user_domain_name=user_domain_name,
     )
 
-    keystone_session = session.Session(auth=auth)
+    keystone_session = session.Session(auth=auth, timeout=http_timeout)
 
     return swiftclient.Connection(
         session=keystone_session,
         os_options={"region_name": region_name} if region_name else {},
+        timeout=http_timeout,
+        retries=swift_retries,
     )
 
 
@@ -116,6 +131,8 @@ class SwiftArtifactRepository(ArtifactRepository):
         project_domain_name=None,
         user_domain_name=None,
         region_name=None,
+        http_timeout=None,
+        swift_retries=None,
         tracking_uri: str | None = None,
         registry_uri: str | None = None,
     ) -> None:
@@ -131,6 +148,10 @@ class SwiftArtifactRepository(ArtifactRepository):
             project_domain_name: OpenStack project domain. If None, uses OS_PROJECT_DOMAIN_NAME.
             user_domain_name: OpenStack user domain. If None, uses OS_USER_DOMAIN_NAME.
             region_name: OpenStack region. If None, uses OS_REGION_NAME env var.
+            http_timeout: per-request HTTP timeout in seconds. If None, uses
+                OS_HTTP_TIMEOUT env var (default: 60).
+            swift_retries: swiftclient connection-error retry count. If None,
+                uses OS_SWIFT_RETRIES env var (default: 1).
             tracking_uri: Optional URI for the MLflow tracking server.
             registry_uri: Optional URI for the MLflow model registry.
         """
@@ -142,6 +163,8 @@ class SwiftArtifactRepository(ArtifactRepository):
         self._project_domain_name = project_domain_name
         self._user_domain_name = user_domain_name
         self._region_name = region_name
+        self._http_timeout = http_timeout
+        self._swift_retries = swift_retries
 
     def _get_swift_connection(self):
         return _get_swift_connection(
@@ -152,6 +175,8 @@ class SwiftArtifactRepository(ArtifactRepository):
             project_domain_name=self._project_domain_name,
             user_domain_name=self._user_domain_name,
             region_name=self._region_name,
+            http_timeout=self._http_timeout,
+            swift_retries=self._swift_retries,
         )
 
     def parse_swift_uri(self, uri):
