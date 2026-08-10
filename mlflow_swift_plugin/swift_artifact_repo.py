@@ -348,6 +348,8 @@ class SwiftArtifactRepository(ArtifactRepository):
 
         dest_path = dest_path.rstrip("/") if dest_path else ""
 
+        from swiftclient.exceptions import ClientException
+
         conn = self._get_swift_connection()
 
         try:
@@ -364,7 +366,13 @@ class SwiftArtifactRepository(ArtifactRepository):
                         f"Listed object path does not start with artifact path. "
                         f"Artifact path: {dest_path}. Object path: {file_path}."
                     )
-                conn.delete_object(container, file_path)
+                try:
+                    conn.delete_object(container, file_path)
+                except ClientException as e:
+                    # Container listings are eventually consistent, so a concurrent
+                    # or preceding delete can still be listed here.
+                    if e.http_status != 404:
+                        raise
         except Exception as e:
             raise MlflowException(
                 f"Failed to delete artifacts from Swift: {e}",
