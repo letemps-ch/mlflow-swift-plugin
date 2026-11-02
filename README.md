@@ -14,3 +14,4 @@ Set the following environment variables
 `OS_PROJECT_DOMAIN_NAME`: OpenStack project domain name
 `OS_USER_DOMAIN_NAME`: OpenStack user domain name
 `OS_REGION_NAME`: OpenStack region name
+`MLFLOW_SWIFT_TIMEOUT_SECONDS`: per-request socket timeout, after which swiftclient retries the request (default: 60)
