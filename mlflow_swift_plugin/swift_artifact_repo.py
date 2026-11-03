@@ -35,6 +35,7 @@ def _get_swift_connection(
         OS_PROJECT_DOMAIN_NAME: OpenStack project domain name
         OS_USER_DOMAIN_NAME: OpenStack user domain name
         OS_REGION_NAME: OpenStack region name
+        MLFLOW_SWIFT_TIMEOUT_SECONDS: per-request socket timeout (default: 60)
     """
     import swiftclient
     from keystoneauth1 import session
@@ -67,11 +68,14 @@ def _get_swift_connection(
         user_domain_name=user_domain_name,
     )
 
-    keystone_session = session.Session(auth=auth)
+    # Without a timeout a stalled request never raises, so swiftclient's retries never fire.
+    timeout = float(os.environ.get("MLFLOW_SWIFT_TIMEOUT_SECONDS", "60"))
+    keystone_session = session.Session(auth=auth, timeout=timeout)
 
     return swiftclient.Connection(
         session=keystone_session,
         os_options={"region_name": region_name} if region_name else {},
+        timeout=timeout,
     )
 
 
@@ -94,6 +98,7 @@ class SwiftArtifactRepository(ArtifactRepository):
         OS_PROJECT_DOMAIN_NAME: OpenStack project domain name (default: "Default")
         OS_USER_DOMAIN_NAME: OpenStack user domain name (default: "Default")
         OS_REGION_NAME: OpenStack region name (optional)
+        MLFLOW_SWIFT_TIMEOUT_SECONDS: per-request socket timeout (default: 60)
 
     Example:
         >>> import mlflow
